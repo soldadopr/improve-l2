@@ -1,0 +1,52 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.0;
+
+// Interface for interacting with zk-SNARKs verifier contract
+interface ZkVerifier {
+    function verifyProof(bytes memory proof) external returns (bool);
+}
+
+contract OptimisticRollup {
+    struct Transaction {
+        address from;
+        address to;
+        uint256 amount;
+        bytes zkProof; // zk-SNARK proof for transaction validity
+    }
+
+    mapping(uint256 => Transaction) public transactions;
+    uint256 public lastTransactionId;
+
+    ZkVerifier public zkVerifierContract;
+
+    event NewTransaction(uint256 indexed transactionId, address indexed from, address indexed to, uint256 amount);
+
+    constructor(address _zkVerifierContract) {
+        zkVerifierContract = ZkVerifier(_zkVerifierContract);
+    }
+
+    // Submit a new transaction to the rollup
+    function submitTransaction(address _to, uint256 _amount, bytes memory _zkProof) external {
+        // Verify the zk-SNARK proof for transaction validity
+        require(zkVerifierContract.verifyProof(_zkProof), "Proof verification failed");
+
+        lastTransactionId++;
+        transactions[lastTransactionId] = Transaction(msg.sender, _to, _amount, _zkProof);
+        emit NewTransaction(lastTransactionId, msg.sender, _to, _amount);
+    }
+
+    // Withdraw funds from the rollup to the Ethereum mainnet
+    function withdraw(uint256 _transactionId) external {
+        Transaction storage transaction = transactions[_transactionId];
+        require(transaction.from == msg.sender, "You are not the recipient of this transaction");
+
+        // Implement withdrawal logic (e.g., transfer funds from the rollup to the recipient)
+        // For simplicity, we emit an event here
+        emit NewWithdrawal(_transactionId, transaction.from, transaction.to, transaction.amount);
+
+        // Clear the transaction after withdrawal
+        delete transactions[_transactionId];
+    }
+
+    event NewWithdrawal(uint256 indexed transactionId, address indexed from, address indexed to, uint256 amount);
+}
